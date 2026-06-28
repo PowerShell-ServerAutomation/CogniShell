@@ -1,0 +1,101 @@
+System Architecture: CogniShell-Server
+
+1. High-Level Overview
+
+CogniShell-Server operates on a Centralized Execution & Orchestration Model. Instead of distributing an execution client to developers, the system exposes a secure API (driven by a Go backend) that coordinates script fetching, dynamic secret injection, remote execution, and AI-driven telemetry.
+
+The architecture is highly decoupled, ensuring that the execution engine remains stateless while relying on specialized external and internal services for state, secrets, and observability.
+
+2. Core Components
+
+A. The Application Tier
+
+CogniShell UI (Next.js): A lightweight, read-only developer portal. It queries the GitHub API to render script catalogs and Markdown readmes, and embeds Grafana panels for script performance visibility.
+
+CogniShell Engine (Go/Golang): The stateless brain of the operation. It exposes the /api/v1/execute REST API, orchestrates the workflow, and spawns isolated pwsh (PowerShell Core) processes for execution against target servers.
+
+B. Security & Identity
+
+HashiCorp Vault: The central secrets engine. The Go backend authenticates with Vault (via AppRole) at runtime to fetch ephemeral "Functional IDs" and credentials needed for the target servers, passing them securely to the PowerShell runspace.
+
+C. Observability Stack
+
+Prometheus: Scrapes the Go backend's /metrics endpoint to track time-series data (execution counts, success/failure rates, durations).
+
+Grafana Loki: Acts as the central log aggregation system. The Go engine pushes raw stdout and stderr streams here for 30-day retention.
+
+Grafana: The visualization layer, querying both Prometheus (metrics) and Loki (logs) to display dashboards embedded in the Next.js UI.
+
+PostgreSQL: Stores persistent relational state, such as registered target environments, user mappings, and metadata not suited for time-series or log databases.
+
+D. AI & Automation
+
+Ollama (Self-Hosted LLM): Hosts models like Llama 3 or CodeLlama securely within the internal network. It receives error payloads from the Go engine to analyze script failures.
+
+GitHub Integration: Fetches scripts at runtime and creates automated bug issues (populated by Ollama) upon script failure.
+
+ChatOps (Slack/Teams): Receives rich webhooks from the Go engine to alert developers (CODEOWNERS) when an execution fails and an issue is created.
+
+3. Architecture Diagram
+
+flowchart TD
+    %% Users and UI
+    Dev([Developer / Webhook]) -->|Triggers Execution| UI[Next.js Portal]
+    UI -->|API Call| Engine[Go Execution Engine]
+    
+    %% Engine Integrations
+    Engine <-->|1. Fetch Script| GitHub[GitHub API]
+    Engine <-->|2. Fetch Secrets| Vault[(HashiCorp Vault)]
+    
+    %% Execution
+    Engine -->|3. Spawns| PWSH[pwsh Process]
+    PWSH -->|Executes via SSH/WinRM| Target[Target Servers]
+    
+    %% Observability
+    Engine -->|4. Push Logs| Loki[(Grafana Loki)]
+    Engine -->|Expose Metrics| Prom[(Prometheus)]
+    Prom --> Grafana[Grafana Dashboards]
+    Loki --> Grafana
+    Grafana -.->|Embeds Panels| UI
+    
+    %% AI Auto-Remediation (Failure Path)
+    Engine -.->|5. On Error: Send Context| Ollama{Ollama LLM}
+    Ollama -.->|Analysis| Engine
+    Engine -.->|6. Create Issue| GitHub
+    Engine -.->|7. Alert CODEOWNER| ChatOps[Slack / Teams]
+    
+    %% Styling
+    classDef primary fill:#2b3137,stroke:#fff,stroke-width:2px,color:#fff;
+    classDef secondary fill:#0052cc,stroke:#fff,stroke-width:2px,color:#fff;
+    classDef db fill:#00ADD8,stroke:#fff,stroke-width:2px,color:#fff;
+    classDef alert fill:#e34f26,stroke:#fff,stroke-width:2px,color:#fff;
+    
+    class Engine,UI primary;
+    class GitHub,Vault,Target secondary;
+    class Loki,Prom,Postgres db;
+    class Ollama,ChatOps alert;
+
+
+4. Execution Data Flow (Step-by-Step)
+
+Trigger: A request hits the /api/v1/execute endpoint containing the ScriptName, Branch, and TargetEnvironment.
+
+Fetch Source: The Go engine authenticates with GitHub and downloads the raw .ps1 script into memory (avoiding local disk storage).
+
+Secret Retrieval: The Go engine queries Vault for the TargetEnvironment credentials.
+
+Execution: The engine spawns a pwsh process, injecting the secrets securely (e.g., as secure environment variables), and pipes the script to standard input for execution against the target servers.
+
+Telemetry: As the script runs, stdout and stderr are streamed to Loki. Upon completion, the exit code updates the Prometheus metrics registry.
+
+AI Remediation (If Exit Code > 0):
+
+The engine packages the stderr and script context into a JSON prompt.
+
+The payload is sent to the local Ollama instance.
+
+Ollama returns a markdown-formatted analysis.
+
+The engine uses the GitHub API to open an issue containing the LLM analysis.
+
+The engine parses the repo's CODEOWNERS and sends a Slack/Teams webhook to alert the assigned developer.
