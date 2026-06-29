@@ -1,0 +1,158 @@
+version: '3.8'
+
+services:
+  # 1. PostgreSQL (For relational state, script metadata, user mappings)
+  postgres:
+    image: postgres:15-alpine
+    container_name: cognishell-postgres
+    environment:
+      POSTGRES_USER: cognishell_admin
+      POSTGRES_PASSWORD: cognishell_password
+      POSTGRES_DB: cognishell_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - cognishell-net
+
+  # 2. HashiCorp Vault (Dev mode for secure secret storage)
+  vault:
+    image: hashicorp/vault:1.13.3
+    container_name: cognishell-vault
+    ports:
+      - "8200:8200"
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: "myroot"
+      VAULT_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
+    cap_add:
+      - IPC_LOCK
+    restart: unless-stopped
+    networks:
+      - cognishell-net
+
+  # 3. Prometheus (For scraping metrics)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: cognishell-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    restart: unless-stopped
+    networks:
+      - cognishell-net
+
+  # 4. Grafana Loki (For log aggregation)
+  loki:
+    image: grafana/loki:2.9.1
+    container_name: cognishell-loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./docker/loki/loki-config.yaml:/etc/loki/local-config.yaml
+      - loki_data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    restart: unless-stopped
+    networks:
+      - cognishell-net
+
+  # 5. Grafana (For visualization & dashboard management)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: cognishell-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ALLOW_EMBEDDING=true
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+    volumes:
+      - ./docker/grafana/provisioning/datasources/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+      - ./docker/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
+      - ./docker/grafana/dashboards:/var/lib/grafana/dashboards
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+      - loki
+    restart: unless-stopped
+    networks:
+      - cognishell-net
+
+  # 6. Ollama (For local LLM-driven auto-remediation)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: cognishell-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+    networks:
+      - cognishell-net
+
+  # Helper service to automatically pull CodeLlama model into Ollama
+  ollama-pull-model:
+    image: ollama/ollama:latest
+    container_name: cognishell-ollama-pull-model
+    environment:
+      - OLLAMA_HOST=ollama:11434
+    entrypoint: [ "/bin/sh", "-c", "until ollama list >/dev/null 2>&1; do echo 'Waiting for Ollama...'; sleep 2; done; ollama pull codellama" ]
+
+
+    depends_on:
+      - ollama
+    networks:
+      - cognishell-net
+
+  # 7. CogniShell API Engine (Go Backend)
+  cognishell-backend:
+    profiles:
+      - app
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: cognishell-backend
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+      - vault
+      - loki
+    restart: always
+    networks:
+      - cognishell-net
+
+  # 8. CogniShell UI Portal (Next.js Frontend)
+  cognishell-frontend:
+    profiles:
+      - app
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: cognishell-frontend
+    ports:
+      - "3001:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8080/api/v1
+    depends_on:
+      - cognishell-backend
+    restart: always
+    networks:
+      - cognishell-net
+
+volumes:
+  postgres_data:
+  prometheus_data:
+  loki_data:
+  grafana_data:
+  ollama_data:
+
+networks:
+  cognishell-net:
+    driver: bridge

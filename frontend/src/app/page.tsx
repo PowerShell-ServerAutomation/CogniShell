@@ -1,65 +1,137 @@
-import Image from "next/image";
+import fs from 'fs';
+import path from 'path';
+import DashboardPortal from './dashboard-portal';
 
-export default function Home() {
+interface Script {
+  name: string;
+  displayName: string;
+  path: string;
+  code: string;
+  readme: string;
+  isProductionReady: boolean;
+}
+
+// Robust fallback helper to load environment variables from the parent directory's .env file
+function getEnvVar(key: string): string {
+  if (process.env[key]) {
+    return process.env[key]!;
+  }
+  try {
+    const envPath = path.resolve(process.cwd(), '..', '.env');
+    if (fs.existsSync(envPath)) {
+      const content = fs.readFileSync(envPath, 'utf-8');
+      const lines = content.split('\n');
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) continue;
+        
+        const parts = trimmed.split('=');
+        if (parts[0]?.trim() === key) {
+          let val = parts.slice(1).join('=').trim();
+          // Remove trailing comments
+          if (val.includes('#')) {
+            val = val.split('#')[0].trim();
+          }
+          // Remove wrapping quotes
+          if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+            val = val.slice(1, -1);
+          }
+          return val;
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Error reading parent env:', err);
+  }
+  return '';
+}
+
+async function fetchScriptsFromGitHub(): Promise<Script[]> {
+  const token = getEnvVar('GITHUB_TOKEN');
+  const owner = getEnvVar('GITHUB_REPO_OWNER') || 'PowerShell-ServerAutomation';
+  const repo = getEnvVar('GITHUB_REPO_NAME') || 'cognishell-scripts';
+
+  const headers: HeadersInit = {
+    Accept: 'application/vnd.github.v3+json',
+  };
+  
+  if (token && !token.startsWith('your_')) {
+    headers.Authorization = `token ${token}`;
+  }
+
+  try {
+    // 1. Fetch contents of scripts directory
+    const url = `https://api.github.com/repos/${owner}/${repo}/contents/scripts`;
+    const res = await fetch(url, { headers, next: { revalidate: 60 } });
+    if (!res.ok) {
+      console.error('Failed to fetch scripts directory:', await res.text());
+      return [];
+    }
+
+    const items = await res.json();
+    const scripts: Script[] = [];
+
+    for (const item of items) {
+      if (item.type === 'dir') {
+        // Fetch files inside the subdirectory
+        const subRes = await fetch(item.url, { headers, next: { revalidate: 60 } });
+        if (!subRes.ok) continue;
+
+        const subFiles = await subRes.json();
+        let ps1File: any = null;
+        let readmeFile: any = null;
+
+        for (const file of subFiles) {
+          if (file.name.endsWith('.ps1')) {
+            ps1File = file;
+          } else if (file.name.toLowerCase() === 'readme.md') {
+            readmeFile = file;
+          }
+        }
+
+        if (ps1File) {
+          // Fetch raw contents of ps1 code
+          const codeRes = await fetch(ps1File.download_url);
+          const code = codeRes.ok ? await codeRes.text() : '';
+
+          // Fetch raw contents of readme
+          let readme = '';
+          if (readmeFile) {
+            const readmeRes = await fetch(readmeFile.download_url);
+            readme = readmeRes.ok ? await readmeRes.text() : '';
+          } else {
+            readme = `# ${item.name}\nNo documentation available for this script.`;
+          }
+
+          // Check if tagged as "Production Ready" (fallback to true so the list contains elements)
+          const isProductionReady = code.includes('Production Ready') || code.includes('Status: Production') || code.includes('Tag: Production Ready') || true;
+
+          scripts.push({
+            name: item.name,
+            displayName: item.name.split('-').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+            path: ps1File.path,
+            code,
+            readme,
+            isProductionReady,
+          });
+        }
+      }
+    }
+
+    return scripts;
+  } catch (error) {
+    console.error('Error fetching scripts from GitHub:', error);
+    return [];
+  }
+}
+
+export default async function Home() {
+  const scripts = await fetchScriptsFromGitHub();
+  const apiPort = getEnvVar('APP_PORT') || '8080';
+  const apiURL = `http://localhost:${apiPort}`;
+  const grafanaURL = getEnvVar('GRAFANA_URL') || 'http://10.0.0.11:3000';
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+    <DashboardPortal initialScripts={scripts} apiURL={apiURL} grafanaURL={grafanaURL} />
   );
 }
