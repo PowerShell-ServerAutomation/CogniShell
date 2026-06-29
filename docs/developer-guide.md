@@ -33,20 +33,20 @@ CogniShell operates as a stateless orchestrator. Below is the workflow diagram d
 ```mermaid
 flowchart TD
     %% Users and UI
-    Dev([Developer / Webhook]) -->|Triggers Execution| UI[Next.js Portal]
+    Dev(["Developer / Webhook"]) -->|Triggers Execution| UI[Next.js Portal]
     UI -->|API Call| Engine[Go Execution Engine]
     
     %% Engine Integrations
     Engine <-->|1. Fetch Script| GitHub[GitHub API]
-    Engine <-->|2. Fetch Secrets| Vault[(HashiCorp Vault)]
+    Engine <-->|2. Fetch Secrets| Vault[("HashiCorp Vault")]
     
     %% Execution
     Engine -->|3. Spawns| PWSH[pwsh Process]
     PWSH -->|Executes via SSH/WinRM| Target[Target Servers]
     
     %% Observability
-    Engine -->|4. Push Logs| Loki[(Grafana Loki)]
-    Engine -->|Expose Metrics| Prom[(Prometheus)]
+    Engine -->|4. Push Logs| Loki[("Grafana Loki")]
+    Engine -->|Expose Metrics| Prom[("Prometheus")]
     Prom --> Grafana[Grafana Dashboards]
     Loki --> Grafana
     Grafana -.->|Embeds Panels| UI
@@ -55,7 +55,7 @@ flowchart TD
     Engine -.->|5. On Error: Send Context| Ollama{Ollama LLM}
     Ollama -.->|Analysis| Engine
     Engine -.->|6. Create Issue| GitHub
-    Engine -.->|7. Alert CODEOWNER| ChatOps[Slack / Teams]
+    Engine -.->|7. Alert CODEOWNER| ChatOps["Slack / Teams"]
     
     %% Styling
     classDef primary fill:#2b3137,stroke:#fff,stroke-width:2px,color:#fff;

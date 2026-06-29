@@ -34,14 +34,14 @@ For high-availability, scalability, and absolute isolation, the architecture mus
 
 ```mermaid
 flowchart TD
-    Client([User/Webhook]) -->|HTTPS| ALB[Application Load Balancer]
+    Client(["User/Webhook"]) -->|HTTPS| ALB[Application Load Balancer]
     
     subgraph EKS["Kubernetes Cluster (EKS / GKE)"]
         ALB -->|Route UI Traffic| UI-Pods["UI Pods (Next.js)"]
         ALB -->|Route API Traffic| API-Gateway["API Gateway Pods (Go)"]
         
         %% Task Queue
-        API-Gateway -->|Publish Job| MQ[(Message Broker: RabbitMQ/Redis)]
+        API-Gateway -->|Publish Job| MQ[("Message Broker: RabbitMQ/Redis")]
         
         %% Workers
         MQ -->|Poll Job| Worker-Pool["Worker Pods (Go)"]
@@ -51,13 +51,13 @@ flowchart TD
     end
     
     %% Target Networks
-    Job-Pod -->|SSH / WinRM| Targets[(Target Servers)]
+    Job-Pod -->|SSH / WinRM| Targets[("Target Servers")]
     
     %% External Managed Services
-    Worker-Pool -->|Fetch Credentials| Vault-HA[(Vault HA Cluster)]
-    Job-Pod -.->|Live Logs| Loki-HA[(Grafana Loki with S3 Backend)]
-    API-Gateway -.->|Relational Metadata| DB-RDS[(Managed PostgreSQL: RDS/Cloud SQL)]
-    API-Gateway -.->|Triage Payload| LLM-Cluster{Managed LLM: AWS Bedrock/Azure OpenAI}
+    Worker-Pool -->|Fetch Credentials| Vault-HA[("Vault HA Cluster")]
+    Job-Pod -.->|Live Logs| Loki-HA[("Grafana Loki with S3 Backend")]
+    API-Gateway -.->|Relational Metadata| DB-RDS[("Managed PostgreSQL: RDS/Cloud SQL")]
+    API-Gateway -.->|Triage Payload| LLM-Cluster{"Managed LLM: AWS Bedrock/Azure OpenAI"}
 ```
 
 ---
