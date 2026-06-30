@@ -48,46 +48,38 @@ func (c *Client) sendTeamsAdaptiveCard(ctx context.Context, webhookURL, scriptPa
 	}
 
 	payload := map[string]interface{}{
-		"type": "message",
-		"attachments": []interface{}{
+		"type":        "AdaptiveCard",
+		"version":     "1.4",
+		"$schema":     "http://adaptivecards.io/schemas/adaptive-card.json",
+		"body": []interface{}{
 			map[string]interface{}{
-				"contentType": "application/vnd.microsoft.card.adaptive",
-				"content": map[string]interface{}{
-					"type":        "AdaptiveCard",
-					"version":     "1.4",
-					"$schema":     "http://adaptivecards.io/schemas/adaptive-card.json",
-					"body": []interface{}{
-						map[string]interface{}{
-							"type":   "TextBlock",
-							"size":   "medium",
-							"weight": "bolder",
-							"text":   "🚨 CogniShell Alert: Script Execution Failure",
-							"color":  "Attention",
-						},
-						map[string]interface{}{
-							"type":   "TextBlock",
-							"text":   "An automated script execution failed with a non-zero exit code. An issue has been created and assigned.",
-							"wrap":   true,
-							"spacing": "small",
-						},
-						map[string]interface{}{
-							"type": "FactSet",
-							"facts": []interface{}{
-								map[string]interface{}{"title": "Script:", "value": scriptPath},
-								map[string]interface{}{"title": "Environment:", "value": environment},
-								map[string]interface{}{"title": "Assignees:", "value": assigneesStr},
-							},
-							"spacing": "medium",
-						},
-					},
-					"actions": []interface{}{
-						map[string]interface{}{
-							"type":  "Action.OpenUrl",
-							"title": "View GitHub Issue",
-							"url":   issueURL,
-						},
-					},
+				"type":   "TextBlock",
+				"size":   "medium",
+				"weight": "bolder",
+				"text":   "🚨 CogniShell Alert: Script Execution Failure",
+				"color":  "Attention",
+			},
+			map[string]interface{}{
+				"type":   "TextBlock",
+				"text":   "An automated script execution failed with a non-zero exit code. An issue has been created and assigned.",
+				"wrap":   true,
+				"spacing": "small",
+			},
+			map[string]interface{}{
+				"type": "FactSet",
+				"facts": []interface{}{
+					map[string]interface{}{"title": "Script:", "value": scriptPath},
+					map[string]interface{}{"title": "Environment:", "value": environment},
+					map[string]interface{}{"title": "Assignees:", "value": assigneesStr},
 				},
+				"spacing": "medium",
+			},
+		},
+		"actions": []interface{}{
+			map[string]interface{}{
+				"type":  "Action.OpenUrl",
+				"title": "View GitHub Issue",
+				"url":   issueURL,
 			},
 		},
 	}

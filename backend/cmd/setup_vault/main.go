@@ -55,8 +55,8 @@ path "secret/data/cognishell/*" {
 	_, err = client.Logical().Write("auth/approle/role/cognishell-role", map[string]interface{}{
 		"secret_id_ttl":  "0",
 		"token_num_uses": "0",
-		"token_ttl":      "20m",
-		"token_max_ttl":  "30m",
+		"token_ttl":      "720h",
+		"token_max_ttl":  "720h",
 		"token_policies": policyName,
 	})
 	if err != nil {

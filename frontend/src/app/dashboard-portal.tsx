@@ -37,6 +37,7 @@ interface DashboardPortalProps {
 }
 
 export default function DashboardPortal({ initialScripts, apiURL, grafanaURL }: DashboardPortalProps) {
+  const cleanGrafanaURL = grafanaURL.endsWith('/') ? grafanaURL.slice(0, -1) : grafanaURL;
   const [scripts] = useState<Script[]>(initialScripts);
   const [activeScript, setActiveScript] = useState<Script | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -144,7 +145,13 @@ export default function DashboardPortal({ initialScripts, apiURL, grafanaURL }: 
       {/* Sidebar */}
       <aside className="w-80 border-r border-zinc-800 flex flex-col bg-zinc-900/50 backdrop-blur-md">
         {/* Brand */}
-        <div className="p-6 border-b border-zinc-800 flex items-center gap-3">
+        <button
+          onClick={() => {
+            setActiveScript(null);
+            setActiveTab('docs');
+          }}
+          className="p-6 border-b border-zinc-800 flex items-center gap-3 text-left w-full hover:bg-zinc-800/20 transition-all focus:outline-none"
+        >
           <div className="bg-indigo-600 p-2 rounded-lg text-white">
             <Cpu size={20} className="animate-pulse" />
           </div>
@@ -154,7 +161,7 @@ export default function DashboardPortal({ initialScripts, apiURL, grafanaURL }: 
             </h1>
             <p className="text-xs text-zinc-500 font-medium">Orchestration & Telemetry</p>
           </div>
-        </div>
+        </button>
 
         {/* Search */}
         <div className="p-4 border-b border-zinc-800">
@@ -363,7 +370,7 @@ export default function DashboardPortal({ initialScripts, apiURL, grafanaURL }: 
                       {/* Embedded Grafana iframe Success panel */}
                       <div className="border border-zinc-800 rounded-lg overflow-hidden h-[240px] bg-zinc-950">
                         <iframe
-                          src={`${grafanaURL}/d-solo/cognishell-dashboard/cognishell-script-metrics?orgId=1&panelId=1&refresh=5s&theme=dark&var-script_name=${activeScript.path}`}
+                          src={`${cleanGrafanaURL}/d-solo/cognishell-dashboard/cognishell-script-metrics?orgId=1&panelId=1&refresh=5s&theme=dark&var-script_name=${activeScript.path}`}
                           width="100%"
                           height="100%"
                           frameBorder="0"
@@ -375,7 +382,7 @@ export default function DashboardPortal({ initialScripts, apiURL, grafanaURL }: 
                       {/* Embedded Grafana iframe Duration panel */}
                       <div className="border border-zinc-800 rounded-lg overflow-hidden h-[240px] bg-zinc-950">
                         <iframe
-                          src={`${grafanaURL}/d-solo/cognishell-dashboard/cognishell-script-metrics?orgId=1&panelId=2&refresh=5s&theme=dark&var-script_name=${activeScript.path}`}
+                          src={`${cleanGrafanaURL}/d-solo/cognishell-dashboard/cognishell-script-metrics?orgId=1&panelId=2&refresh=5s&theme=dark&var-script_name=${activeScript.path}`}
                           width="100%"
                           height="100%"
                           frameBorder="0"

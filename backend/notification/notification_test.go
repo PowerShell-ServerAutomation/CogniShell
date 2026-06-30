@@ -42,18 +42,12 @@ func TestSendNotificationTeams(t *testing.T) {
 		t.Fatalf("SendNotification() returned error: %v", err)
 	}
 
-	if receivedPayload["type"] != "message" {
-		t.Errorf("Expected payload type to be 'message', got %v", receivedPayload["type"])
+	if receivedPayload["type"] != "AdaptiveCard" {
+		t.Errorf("Expected payload type to be 'AdaptiveCard', got %v", receivedPayload["type"])
 	}
 
-	attachments, ok := receivedPayload["attachments"].([]interface{})
-	if !ok || len(attachments) == 0 {
-		t.Fatal("Expected attachments slice to be present")
-	}
-
-	attachment := attachments[0].(map[string]interface{})
-	if attachment["contentType"] != "application/vnd.microsoft.card.adaptive" {
-		t.Errorf("Expected attachment contentType to be 'application/vnd.microsoft.card.adaptive', got %v", attachment["contentType"])
+	if receivedPayload["version"] != "1.4" {
+		t.Errorf("Expected version to be '1.4', got %v", receivedPayload["version"])
 	}
 }
 
