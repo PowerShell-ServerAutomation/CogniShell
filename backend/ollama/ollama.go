@@ -18,7 +18,7 @@ type Client struct {
 func NewClient(url string) *Client {
 	return &Client{
 		url:        strings.TrimSuffix(url, "/"),
-		httpClient: &http.Client{Timeout: 45 * time.Second}, // Longer timeout since LLM inference can take some time
+		httpClient: &http.Client{Timeout: 150 * time.Second}, // Longer timeout since LLM inference on a single CPU core can take some time
 	}
 }
 
@@ -44,7 +44,7 @@ func (c *Client) AnalyzeError(ctx context.Context, scriptPath, scriptCode, stder
 	)
 
 	reqBody := GenerateRequest{
-		Model:  "codellama",
+		Model:  "qwen2.5-coder:0.5b",
 		Prompt: prompt,
 		Stream: false,
 	}

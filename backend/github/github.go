@@ -55,11 +55,12 @@ func (c *Client) FetchScript(ctx context.Context, owner, repo, path, ref string)
 	return string(content), nil
 }
 
-// CreateIssue creates a new issue in GitHub and assigns it to specified assignees
 func (c *Client) CreateIssue(ctx context.Context, owner, repo, title, body string, assignees []string) (*github.Issue, error) {
+	labels := []string{"bug", "enhancement"}
 	req := &github.IssueRequest{
-		Title: &title,
-		Body:  &body,
+		Title:  &title,
+		Body:   &body,
+		Labels: &labels,
 	}
 
 	if len(assignees) > 0 {

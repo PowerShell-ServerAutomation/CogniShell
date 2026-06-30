@@ -100,7 +100,7 @@ services:
     container_name: cognishell-ollama-pull-model
     environment:
       - OLLAMA_HOST=ollama:11434
-    entrypoint: [ "/bin/sh", "-c", "until ollama list >/dev/null 2>&1; do echo 'Waiting for Ollama...'; sleep 2; done; ollama pull codellama" ]
+    entrypoint: [ "/bin/sh", "-c", "until ollama list >/dev/null 2>&1; do echo 'Waiting for Ollama...'; sleep 2; done; ollama pull qwen2.5-coder:0.5b" ]
 
 
     depends_on:

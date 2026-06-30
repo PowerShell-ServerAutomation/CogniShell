@@ -21,7 +21,7 @@ func NewClient() *Client {
 }
 
 // SendNotification routes the alert to the selected provider (teams | slack)
-func (c *Client) SendNotification(ctx context.Context, provider, webhookURL, scriptPath, environment string, assignees []string, issueURL string) error {
+func (c *Client) SendNotification(ctx context.Context, provider, webhookURL, scriptPath, environment string, assignees []string, issueURL string, isInfraError bool) error {
 	provider = strings.ToLower(strings.TrimSpace(provider))
 	if provider == "" || provider == "none" {
 		return nil
@@ -33,105 +33,129 @@ func (c *Client) SendNotification(ctx context.Context, provider, webhookURL, scr
 
 	switch provider {
 	case "teams":
-		return c.sendTeamsAdaptiveCard(ctx, webhookURL, scriptPath, environment, assignees, issueURL)
+		return c.sendTeamsAdaptiveCard(ctx, webhookURL, scriptPath, environment, assignees, issueURL, isInfraError)
 	case "slack":
-		return c.sendSlackBlocks(ctx, webhookURL, scriptPath, environment, assignees, issueURL)
+		return c.sendSlackBlocks(ctx, webhookURL, scriptPath, environment, assignees, issueURL, isInfraError)
 	default:
 		return fmt.Errorf("unsupported notification provider: %s", provider)
 	}
 }
 
-func (c *Client) sendTeamsAdaptiveCard(ctx context.Context, webhookURL, scriptPath, environment string, assignees []string, issueURL string) error {
+func (c *Client) sendTeamsAdaptiveCard(ctx context.Context, webhookURL, scriptPath, environment string, assignees []string, issueURL string, isInfraError bool) error {
 	assigneesStr := strings.Join(assignees, ", ")
 	if assigneesStr == "" {
 		assigneesStr = "unassigned"
 	}
 
-	payload := map[string]interface{}{
-		"type":        "AdaptiveCard",
-		"version":     "1.4",
-		"$schema":     "http://adaptivecards.io/schemas/adaptive-card.json",
-		"body": []interface{}{
-			map[string]interface{}{
-				"type":   "TextBlock",
-				"size":   "medium",
-				"weight": "bolder",
-				"text":   "🚨 CogniShell Alert: Script Execution Failure",
-				"color":  "Attention",
-			},
-			map[string]interface{}{
-				"type":   "TextBlock",
-				"text":   "An automated script execution failed with a non-zero exit code. An issue has been created and assigned.",
-				"wrap":   true,
-				"spacing": "small",
-			},
-			map[string]interface{}{
-				"type": "FactSet",
-				"facts": []interface{}{
-					map[string]interface{}{"title": "Script:", "value": scriptPath},
-					map[string]interface{}{"title": "Environment:", "value": environment},
-					map[string]interface{}{"title": "Assignees:", "value": assigneesStr},
-				},
-				"spacing": "medium",
-			},
+	title := "🚨 CogniShell Alert: Script Execution Failure"
+	desc := "An automated script execution failed with a non-zero exit code. An issue has been created and assigned."
+	if isInfraError {
+		title = "🚨 CogniShell Alert: Infrastructure Execution Failure"
+		desc = "The orchestrator encountered an infrastructure issue during execution. No script was run. Notifications have been sent to codeowners."
+	}
+
+	bodyElements := []interface{}{
+		map[string]interface{}{
+			"type":   "TextBlock",
+			"size":   "medium",
+			"weight": "bolder",
+			"text":   title,
+			"color":  "Attention",
 		},
-		"actions": []interface{}{
+		map[string]interface{}{
+			"type":    "TextBlock",
+			"text":    desc,
+			"wrap":    true,
+			"spacing": "small",
+		},
+		map[string]interface{}{
+			"type": "FactSet",
+			"facts": []interface{}{
+				map[string]interface{}{"title": "Script:", "value": scriptPath},
+				map[string]interface{}{"title": "Environment:", "value": environment},
+				map[string]interface{}{"title": "Assignees:", "value": assigneesStr},
+			},
+			"spacing": "medium",
+		},
+	}
+
+	payload := map[string]interface{}{
+		"type":    "AdaptiveCard",
+		"version": "1.4",
+		"$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+		"body":    bodyElements,
+	}
+
+	if !isInfraError && issueURL != "" {
+		payload["actions"] = []interface{}{
 			map[string]interface{}{
 				"type":  "Action.OpenUrl",
 				"title": "View GitHub Issue",
 				"url":   issueURL,
 			},
-		},
+		}
 	}
 
 	return c.postJSON(ctx, webhookURL, payload)
 }
 
-func (c *Client) sendSlackBlocks(ctx context.Context, webhookURL, scriptPath, environment string, assignees []string, issueURL string) error {
+func (c *Client) sendSlackBlocks(ctx context.Context, webhookURL, scriptPath, environment string, assignees []string, issueURL string, isInfraError bool) error {
 	assigneesStr := strings.Join(assignees, ", ")
 	if assigneesStr == "" {
 		assigneesStr = "unassigned"
 	}
 
-	payload := map[string]interface{}{
-		"blocks": []interface{}{
-			map[string]interface{}{
-				"type": "header",
-				"text": map[string]interface{}{
-					"type": "plain_text",
-					"text": "🚨 CogniShell Alert: Script Execution Failure",
-				},
-			},
-			map[string]interface{}{
-				"type": "section",
-				"text": map[string]interface{}{
-					"type": "mrkdwn",
-					"text": "An automated script execution failed with a non-zero exit code. An issue has been created and assigned.",
-				},
-			},
-			map[string]interface{}{
-				"type": "section",
-				"fields": []interface{}{
-					map[string]interface{}{"type": "mrkdwn", "text": fmt.Sprintf("*Script:*\n`%s`", scriptPath)},
-					map[string]interface{}{"type": "mrkdwn", "text": fmt.Sprintf("*Environment:*\n`%s`", environment)},
-					map[string]interface{}{"type": "mrkdwn", "text": fmt.Sprintf("*Assignees:*\n%s", assigneesStr)},
-				},
-			},
-			map[string]interface{}{
-				"type": "actions",
-				"elements": []interface{}{
-					map[string]interface{}{
-						"type": "button",
-						"text": map[string]interface{}{
-							"type": "plain_text",
-							"text": "View GitHub Issue",
-						},
-						"url":   issueURL,
-						"style": "danger",
-					},
-				},
+	title := "🚨 CogniShell Alert: Script Execution Failure"
+	desc := "An automated script execution failed with a non-zero exit code. An issue has been created and assigned."
+	if isInfraError {
+		title = "🚨 CogniShell Alert: Infrastructure Execution Failure"
+		desc = "The orchestrator encountered an infrastructure issue during execution. No script was run. Notifications have been sent to codeowners."
+	}
+
+	blocks := []interface{}{
+		map[string]interface{}{
+			"type": "header",
+			"text": map[string]interface{}{
+				"type": "plain_text",
+				"text": title,
 			},
 		},
+		map[string]interface{}{
+			"type": "section",
+			"text": map[string]interface{}{
+				"type": "mrkdwn",
+				"text": desc,
+			},
+		},
+		map[string]interface{}{
+			"type": "section",
+			"fields": []interface{}{
+				map[string]interface{}{"type": "mrkdwn", "text": fmt.Sprintf("*Script:*\n`%s`", scriptPath)},
+				map[string]interface{}{"type": "mrkdwn", "text": fmt.Sprintf("*Environment:*\n`%s`", environment)},
+				map[string]interface{}{"type": "mrkdwn", "text": fmt.Sprintf("*Assignees:*\n%s", assigneesStr)},
+			},
+		},
+	}
+
+	if !isInfraError && issueURL != "" {
+		blocks = append(blocks, map[string]interface{}{
+			"type": "actions",
+			"elements": []interface{}{
+				map[string]interface{}{
+					"type": "button",
+					"text": map[string]interface{}{
+						"type": "plain_text",
+						"text": "View GitHub Issue",
+					},
+					"url":   issueURL,
+					"style": "danger",
+				},
+			},
+		})
+	}
+
+	payload := map[string]interface{}{
+		"blocks": blocks,
 	}
 
 	return c.postJSON(ctx, webhookURL, payload)

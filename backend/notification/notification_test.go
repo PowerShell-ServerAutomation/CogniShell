@@ -36,6 +36,7 @@ func TestSendNotificationTeams(t *testing.T) {
 		"dev",
 		[]string{"@vsrivastava", "@johndoe"},
 		"https://github.com/issue/1",
+		false,
 	)
 
 	if err != nil {
@@ -78,6 +79,7 @@ func TestSendNotificationSlack(t *testing.T) {
 		"dev",
 		[]string{"@vsrivastava"},
 		"https://github.com/issue/1",
+		false,
 	)
 
 	if err != nil {

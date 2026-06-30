@@ -159,7 +159,7 @@ export default function DashboardPortal({ initialScripts, apiURL, grafanaURL }: 
             <h1 className="font-bold text-lg tracking-wider bg-gradient-to-r from-white to-zinc-400 bg-clip-text text-transparent">
               COGNISHELL
             </h1>
-            <p className="text-xs text-zinc-500 font-medium">Orchestration & Telemetry</p>
+            <p className="text-xs text-zinc-500 font-medium">AI Powered Orchestration Platform</p>
           </div>
         </button>
 
@@ -195,11 +195,10 @@ export default function DashboardPortal({ initialScripts, apiURL, grafanaURL }: 
                     setExitCode(null);
                     setExecutionID(null);
                   }}
-                  className={`w-full flex items-center justify-between p-3 rounded-lg text-left text-sm transition-all group ${
-                    activeScript?.path === script.path
-                      ? 'bg-indigo-600/10 border border-indigo-500/30 text-white font-medium shadow-md shadow-indigo-600/5'
-                      : 'hover:bg-zinc-800/60 border border-transparent text-zinc-400 hover:text-zinc-200'
-                  }`}
+                  className={`w-full flex items-center justify-between p-3 rounded-lg text-left text-sm transition-all group ${activeScript?.path === script.path
+                    ? 'bg-indigo-600/10 border border-indigo-500/30 text-white font-medium shadow-md shadow-indigo-600/5'
+                    : 'hover:bg-zinc-800/60 border border-transparent text-zinc-400 hover:text-zinc-200'
+                    }`}
                 >
                   <div className="flex items-center gap-3">
                     <Server size={16} className={activeScript?.path === script.path ? 'text-indigo-400' : 'text-zinc-500 group-hover:text-zinc-400'} />
@@ -226,11 +225,10 @@ export default function DashboardPortal({ initialScripts, apiURL, grafanaURL }: 
         <div className="p-4 border-t border-zinc-800 bg-zinc-950/20">
           <button
             onClick={() => setActiveScript(null)}
-            className={`w-full flex items-center gap-3 p-3 rounded-lg text-sm transition-all border ${
-              activeScript === null
-                ? 'bg-zinc-800 border-zinc-700 text-white'
-                : 'hover:bg-zinc-900 border-transparent text-zinc-400 hover:text-zinc-200'
-            }`}
+            className={`w-full flex items-center gap-3 p-3 rounded-lg text-sm transition-all border ${activeScript === null
+              ? 'bg-zinc-800 border-zinc-700 text-white'
+              : 'hover:bg-zinc-900 border-transparent text-zinc-400 hover:text-zinc-200'
+              }`}
           >
             <Activity size={16} className="text-indigo-400" />
             <span className="font-medium">System Dashboard Overview</span>
@@ -273,11 +271,10 @@ export default function DashboardPortal({ initialScripts, apiURL, grafanaURL }: 
                 <button
                   onClick={handleTriggerExecution}
                   disabled={executing}
-                  className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold shadow-lg shadow-indigo-600/10 transition-all ${
-                    executing
-                      ? 'bg-zinc-800 border border-zinc-700 text-zinc-500 cursor-not-allowed'
-                      : 'bg-indigo-600 hover:bg-indigo-500 text-white hover:scale-[1.02] active:scale-[0.98]'
-                  }`}
+                  className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold shadow-lg shadow-indigo-600/10 transition-all ${executing
+                    ? 'bg-zinc-800 border border-zinc-700 text-zinc-500 cursor-not-allowed'
+                    : 'bg-indigo-600 hover:bg-indigo-500 text-white hover:scale-[1.02] active:scale-[0.98]'
+                    }`}
                 >
                   {executing ? (
                     <RefreshCw className="animate-spin" size={16} />
@@ -293,33 +290,30 @@ export default function DashboardPortal({ initialScripts, apiURL, grafanaURL }: 
             <div className="flex border-b border-zinc-900 bg-zinc-900/10 px-6">
               <button
                 onClick={() => setActiveTab('docs')}
-                className={`py-3 px-4 border-b-2 text-sm font-medium transition-all flex items-center gap-2 ${
-                  activeTab === 'docs'
-                    ? 'border-indigo-500 text-indigo-400'
-                    : 'border-transparent text-zinc-400 hover:text-zinc-200'
-                }`}
+                className={`py-3 px-4 border-b-2 text-sm font-medium transition-all flex items-center gap-2 ${activeTab === 'docs'
+                  ? 'border-indigo-500 text-indigo-400'
+                  : 'border-transparent text-zinc-400 hover:text-zinc-200'
+                  }`}
               >
                 <BookOpen size={16} />
                 Documentation
               </button>
               <button
                 onClick={() => setActiveTab('code')}
-                className={`py-3 px-4 border-b-2 text-sm font-medium transition-all flex items-center gap-2 ${
-                  activeTab === 'code'
-                    ? 'border-indigo-500 text-indigo-400'
-                    : 'border-transparent text-zinc-400 hover:text-zinc-200'
-                }`}
+                className={`py-3 px-4 border-b-2 text-sm font-medium transition-all flex items-center gap-2 ${activeTab === 'code'
+                  ? 'border-indigo-500 text-indigo-400'
+                  : 'border-transparent text-zinc-400 hover:text-zinc-200'
+                  }`}
               >
                 <Code size={16} />
                 Script Source
               </button>
               <button
                 onClick={() => setActiveTab('telemetry')}
-                className={`py-3 px-4 border-b-2 text-sm font-medium transition-all flex items-center gap-2 ${
-                  activeTab === 'telemetry'
-                    ? 'border-indigo-500 text-indigo-400'
-                    : 'border-transparent text-zinc-400 hover:text-zinc-200'
-                }`}
+                className={`py-3 px-4 border-b-2 text-sm font-medium transition-all flex items-center gap-2 ${activeTab === 'telemetry'
+                  ? 'border-indigo-500 text-indigo-400'
+                  : 'border-transparent text-zinc-400 hover:text-zinc-200'
+                  }`}
               >
                 <BarChart2 size={16} />
                 Grafana Telemetry

@@ -204,8 +204,9 @@ func (h *ExecuteHandler) HandleExecute(c *gin.Context) {
 	// 6. Record metrics
 	if err != nil || exitCode != 0 {
 		metrics.ScriptFailureTotal.WithLabelValues(req.ScriptPath, envName).Inc()
+		isInfraError := (err != nil)
 		if h.ollamaClient != nil {
-			go h.triggerAutoRemediation(owner, repo, branch, envName, req.ScriptPath, scriptContent, stderr, exitCode)
+			go h.triggerAutoRemediation(owner, repo, branch, envName, req.ScriptPath, scriptContent, stderr, exitCode, isInfraError)
 		}
 	} else {
 		metrics.ScriptSuccessTotal.WithLabelValues(req.ScriptPath, envName).Inc()
@@ -233,9 +234,9 @@ func (h *ExecuteHandler) HandleExecute(c *gin.Context) {
 }
 
 // triggerAutoRemediation handles background LLM analysis, issue assignment, and Slack/Teams alerts
-func (h *ExecuteHandler) triggerAutoRemediation(owner, repo, branch, env, scriptPath, scriptContent, stderr string, exitCode int) {
+func (h *ExecuteHandler) triggerAutoRemediation(owner, repo, branch, env, scriptPath, scriptContent, stderr string, exitCode int, isInfraError bool) {
 	// Create context with timeout for background processes
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 
 	fmt.Printf("[REMEDIATION] Fetching CODEOWNERS file for %s/%s...\n", owner, repo)
@@ -248,45 +249,49 @@ func (h *ExecuteHandler) triggerAutoRemediation(owner, repo, branch, env, script
 		fmt.Printf("[REMEDIATION] Discovered assignees from CODEOWNERS: %v\n", assignees)
 	}
 
-	// 2. Query Ollama for error analysis
-	fmt.Printf("[REMEDIATION] Querying Ollama LLM for analysis of %s...\n", scriptPath)
-	analysis, err := h.ollamaClient.AnalyzeError(ctx, scriptPath, scriptContent, stderr)
-	if err != nil {
-		fmt.Printf("[REMEDIATION] Error: failed to get Ollama analysis: %v\n", err)
-		analysis = fmt.Sprintf("Failed to get analysis from Ollama: %v\n\nOriginal Stderr:\n```\n%s\n```", err, stderr)
-	}
-
-	// 3. Create GitHub Issue
-	title := fmt.Sprintf("Bug Analysis & Remediation: %s failed in %s", scriptPath, env)
-	body := fmt.Sprintf(
-		"### Script Execution Failure Alert\n\n"+
-			"- **Script Path:** `%s`\n"+
-			"- **Environment:** `%s`\n"+
-			"- **Exit Code:** `%d`\n"+
-			"- **Target Branch:** `%s`\n"+
-			"- **Assignees:** %s\n\n"+
-			"%s",
-		scriptPath, env, exitCode, branch, strings.Join(assignees, ", "), analysis,
-	)
-
-	fmt.Printf("[REMEDIATION] Creating GitHub Issue for %s/%s...\n", owner, repo)
-	issue, err := h.ghClient.CreateIssue(ctx, owner, repo, title, body, assignees)
 	var issueURL string
-	if err != nil {
-		fmt.Printf("[REMEDIATION] Warning: failed to create GitHub issue with assignees: %v. Retrying without assignees...\n", err)
-		// Retry without assignees (set to nil) and mention them in the body
-		bodyWithMentions := fmt.Sprintf("%s\n\n---\n*Note: Assignees could not be assigned directly via the API. Mentions: %s*", body, strings.Join(assignees, ", "))
-		issue, err = h.ghClient.CreateIssue(ctx, owner, repo, title, bodyWithMentions, nil)
+	if !isInfraError {
+		// 2. Query Ollama for error analysis
+		fmt.Printf("[REMEDIATION] Querying Ollama LLM for analysis of %s...\n", scriptPath)
+		analysis, err := h.ollamaClient.AnalyzeError(ctx, scriptPath, scriptContent, stderr)
 		if err != nil {
-			fmt.Printf("[REMEDIATION] Error: failed to create GitHub issue even without assignees: %v\n", err)
-			issueURL = fmt.Sprintf("https://github.com/%s/%s/issues", owner, repo)
+			fmt.Printf("[REMEDIATION] Error: failed to get Ollama analysis: %v\n", err)
+			analysis = fmt.Sprintf("Failed to get analysis from Ollama: %v\n\nOriginal Stderr:\n```\n%s\n```", err, stderr)
+		}
+
+		// 3. Create GitHub Issue
+		title := fmt.Sprintf("Bug Analysis & Remediation: %s failed in %s", scriptPath, env)
+		body := fmt.Sprintf(
+			"### Script Execution Failure Alert\n\n"+
+				"- **Script Path:** `%s`\n"+
+				"- **Environment:** `%s`\n"+
+				"- **Exit Code:** `%d`\n"+
+				"- **Target Branch:** `%s`\n"+
+				"- **Assignees:** %s\n\n"+
+				"%s",
+			scriptPath, env, exitCode, branch, strings.Join(assignees, ", "), analysis,
+		)
+
+		fmt.Printf("[REMEDIATION] Creating GitHub Issue for %s/%s...\n", owner, repo)
+		issue, err := h.ghClient.CreateIssue(ctx, owner, repo, title, body, assignees)
+		if err != nil {
+			fmt.Printf("[REMEDIATION] Warning: failed to create GitHub issue with assignees: %v. Retrying without assignees...\n", err)
+			// Retry without assignees (set to nil) and mention them in the body
+			bodyWithMentions := fmt.Sprintf("%s\n\n---\n*Note: Assignees could not be assigned directly via the API. Mentions: %s*", body, strings.Join(assignees, ", "))
+			issue, err = h.ghClient.CreateIssue(ctx, owner, repo, title, bodyWithMentions, nil)
+			if err != nil {
+				fmt.Printf("[REMEDIATION] Error: failed to create GitHub issue even without assignees: %v\n", err)
+				issueURL = fmt.Sprintf("https://github.com/%s/%s/issues", owner, repo)
+			} else {
+				issueURL = issue.GetHTMLURL()
+				fmt.Printf("[REMEDIATION] GitHub Issue successfully created (without assignees): %s\n", issueURL)
+			}
 		} else {
 			issueURL = issue.GetHTMLURL()
-			fmt.Printf("[REMEDIATION] GitHub Issue successfully created (without assignees): %s\n", issueURL)
+			fmt.Printf("[REMEDIATION] GitHub Issue successfully created and assigned: %s\n", issueURL)
 		}
 	} else {
-		issueURL = issue.GetHTMLURL()
-		fmt.Printf("[REMEDIATION] GitHub Issue successfully created and assigned: %s\n", issueURL)
+		fmt.Printf("[REMEDIATION] Infrastructure issue detected. Skipping Ollama analysis and GitHub Issue creation.\n")
 	}
 
 	// 4. Send Slack/Teams Alert Webhook
@@ -300,7 +305,7 @@ func (h *ExecuteHandler) triggerAutoRemediation(owner, repo, branch, env, script
 
 	if provider != "" && provider != "none" {
 		fmt.Printf("[REMEDIATION] Sending alert via %s webhook...\n", provider)
-		err = h.notifier.SendNotification(ctx, provider, webhookURL, scriptPath, env, assignees, issueURL)
+		err = h.notifier.SendNotification(ctx, provider, webhookURL, scriptPath, env, assignees, issueURL, isInfraError)
 		if err != nil {
 			fmt.Printf("[REMEDIATION] Error: failed to send webhook notification: %v\n", err)
 		} else {
